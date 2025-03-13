@@ -35,14 +35,14 @@ public class ReservationsController : ControllerBase
     }
 
     // Yeni rezervasyon oluştur
-    [HttpPost]
+    /*[HttpPost]
     public async Task<ActionResult<Reservation>> CreateReservation(Reservation reservation)
     {
         _context.Reservations.Add(reservation);
         await _context.SaveChangesAsync();
         return CreatedAtAction(nameof(GetReservation), new { id = reservation.Id }, reservation);
     }
-
+    */
     // Rezervasyonu güncelle
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateReservation(int id, Reservation reservation)
@@ -67,5 +67,45 @@ public class ReservationsController : ControllerBase
         await _context.SaveChangesAsync();
         return NoContent();
     }
+
+    // Yeni Rzervasyon güncellenmiş kısım
+    [HttpPost]
+    public async Task<IActionResult> CreateReservation([FromBody] Reservation reservation)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        //  Önlem: Aynı bilet daha önce rezerve edilmiş mi?
+        var existingReservation = await _context.Reservations
+            .FirstOrDefaultAsync(r => r.TicketId == reservation.TicketId);
+
+        if (existingReservation != null)
+        {
+            return Conflict(new { message = "Bu bilet zaten rezerve edilmiş!" });
+        }
+
+        _context.Reservations.Add(reservation);
+        await _context.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(CreateReservation), new { id = reservation.Id }, reservation);
+    }
+
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetReservationStats()
+    {
+        var totalReservations = await _context.Reservations.CountAsync();
+        var pendingReservations = await _context.Reservations.CountAsync(r => r.Status == "Pending");
+        var confirmedReservations = await _context.Reservations.CountAsync(r => r.Status == "Confirmed");
+
+        return Ok(new
+        {
+            TotalReservations = totalReservations,
+            PendingReservations = pendingReservations,
+            ConfirmedReservations = confirmedReservations
+        });
+    }
+
 }
 
